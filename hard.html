@@ -208,7 +208,7 @@ function drive(parent, child, target, kp) {
 }
 
 // ---------- 상태 ----------
-function start() { build(); G.state = 'play'; hidePanel(); }
+function start() { if (!Board.ready()) return; build(); G.state = 'play'; hidePanel(); }
 function fall(reason) {
   G.state = 'fallen';
   G.reason = reason;
