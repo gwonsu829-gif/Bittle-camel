@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>비틀낙타 · 하드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Dodum&display=swap">
+<style>
+  /* 한 화면 게임: 캔버스가 전부, HUD와 패널만 위에 얹는다. 해 질 녘 사막 한 가지 색감으로 고정. */
+  :root {
+    --night: #24305e;
+    --dusk: #f2a65a;
+    --sand: #e9b872;
+    --ink: #3a2416;
+    --paper: #fff3dd;
+    --ember: #d0532f;
+    --hud-fg: #fff6e6;
+    --display: "Black Han Sans", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    --body: "Gowun Dodum", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--night); color: var(--hud-fg); font-family: var(--body); }
+  #app { position: relative; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .hud { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none; }
+  .meter { font-family: var(--display); font-size: clamp(32px, 7vw, 52px); line-height: 1; text-shadow: 0 2px 0 rgba(36, 48, 94, .6); font-variant-numeric: tabular-nums; }
+  .meter small { font-size: .45em; margin-left: 4px; }
+  .meta { text-align: right; font-size: 14px; line-height: 1.6; text-shadow: 0 1px 0 rgba(36, 48, 94, .7); font-variant-numeric: tabular-nums; }
+  .meta b { font-family: var(--display); font-weight: 400; letter-spacing: .02em; }
+
+  .pads { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; justify-content: space-between; gap: 12px; }
+  .pair { display: flex; gap: 8px; align-items: flex-end; }
+  .pair span { font-size: 12px; opacity: .85; align-self: center; }
+  .pad { width: 58px; height: 58px; border-radius: 14px; border: 2px solid rgba(255, 246, 230, .55); background: rgba(36, 48, 94, .45); color: var(--hud-fg); font-family: var(--display); font-size: 22px; display: grid; place-items: center; cursor: pointer; transition: transform .06s, background .06s; }
+  .pad.on { background: var(--ember); border-color: var(--paper); transform: translateY(3px); }
+
+  .panel[hidden] { display: none; }
+  .panel { position: absolute; inset: 0; display: grid; place-items: center; padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); background: rgba(36, 48, 94, .35); }
+  .card { width: min(420px, 100%); background: var(--paper); color: var(--ink); border-radius: 6px; padding: 26px 24px 22px; box-shadow: 0 10px 0 rgba(58, 36, 22, .35); display: grid; gap: 14px; }
+  .card h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 44px; line-height: 1; color: var(--ember); text-wrap: balance; }
+  .card p { margin: 0; line-height: 1.6; font-size: 15px; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; font-size: 14px; }
+  .keys kbd { font-family: var(--display); font-size: 16px; background: var(--ink); color: var(--paper); border-radius: 5px; padding: 3px 8px; margin-right: 3px; }
+  .card button { justify-self: start; font-family: var(--display); font-size: 20px; padding: 10px 22px; border: 0; border-radius: 6px; background: var(--ember); color: var(--paper); cursor: pointer; box-shadow: 0 4px 0 var(--ink); }
+  .card button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+  .card button:focus-visible, .pad:focus-visible { outline: 3px solid var(--night); outline-offset: 3px; }
+  .hint { font-size: 13px; opacity: .7; }
+</style>
+
+<div id="app">
+  <canvas id="cv"></canvas>
+  <div class="hud">
+    <div class="meter" id="dist">0.0<small>m</small></div>
+    <div class="meta">오아시스까지 <b id="left">100.0</b> m<br>시간 <b id="time">0.0</b>초 · 최고 <b id="best">0.0</b> m<br>맞바람 <b id="wind">잔잔</b></div>
+  </div>
+  <div class="pads">
+    <div class="pair"><button class="pad" id="padA" data-k="a" aria-label="뒷다리 1">A</button><button class="pad" id="padS" data-k="s" aria-label="뒷다리 2">S</button><span>뒷다리</span></div>
+    <div class="pair"><span>앞다리</span><button class="pad" id="padK" data-k="k" aria-label="앞다리 1">K</button><button class="pad" id="padL" data-k="l" aria-label="앞다리 2">L</button></div>
+  </div>
+  <div class="panel" id="panel">
+    <div class="card" id="card"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script src="board.js"></script>
+<script>
+const MODE = 'hard';
+const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
+
+const PX_PER_M = 50, START_X = 300, GOAL_X = START_X + 100 * PX_PER_M;
+const STEP = 1000 / 60, DT2 = STEP * STEP;
+const KEYS = ['a', 's', 'k', 'l'];
+// 키 → 다리. far는 화면 안쪽(어둡게 그림).
+const LEGS = [
+  { key: 'a', hip: 'back', far: true },
+  { key: 's', hip: 'back', far: false },
+  { key: 'k', hip: 'front', far: true },
+  { key: 'l', hip: 'front', far: false },
+];
+// 관절 목표 각도(rad, 부모 기준). 누르면 다리를 들어 앞으로, 떼는 순간 PUSH_STEPS 동안 땅을 뒤로 찬 뒤 곧게 선다.
+const POSE = { stand: { hip: 0, knee: 0 }, lift: { hip: -0.9, knee: 1.8 }, push: { hip: 0.3, knee: 0 } };
+const PUSH_STEPS = 15;
+const KP = 0.15, KD = 0.6, MAX_ACC = 0.2;
+// 하드모드: 맞바람 세기(중력 대비 비율, 상자는 따로)와 기록 저장 키
+// 시뮬레이션 기준: 0.27초 대각선 리듬만 완주(약 86초), 0.30·0.33초 리듬은 실패.
+const HARD = { wind: 0.1, parcelWind: 0.1, hill: 80 }, BEST_KEY = 'bitteul-hard-best';
+const RIM = 14; // 안장 턱 높이(px). 높을수록 상자가 덜 떨어진다.
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+const held = { a: false, s: false, k: false, l: false };
+
+let best = 0;
+try { best = parseFloat(localStorage.getItem(BEST_KEY)) || 0; } catch (e) {}
+
+// ---------- 지형 ----------
+function terrainY(x) {
+  if (x < 700) return 0;
+  const t = x - 700;
+  const fade = x > 5050 ? Math.max(0, 1 - (x - 5050) / 250) : 1;
+  const ramp = Math.min(1, t / 1200) * fade;
+  // 경사가 0.15를 넘으면 낙타가 못 오른다(시뮬레이션으로 확인). 언덕은 그 아래로 유지.
+  let y = -(Math.sin(t / 260) * 12 + Math.sin(t / 83 + 1) * 3) * ramp;
+  y -= Math.exp(-(((x - 2700) / 800) ** 2)) * HARD.hill; // 큰 모래 언덕
+  if (x > 3600) y -= Math.sin(x / 61) * 4 * Math.min(1, (x - 3600) / 400) * fade;
+  return y;
+}
+function seeded(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+
+// ---------- 월드 구성 ----------
+const G = { engine: null, camel: null, rocks: [], state: 'ready', t: 0, dist: 0, wind: 0, reason: '', cam: { x: 0, y: -200 } };
+window.game = G; // 콘솔에서 상태 확인용
+
+function build() {
+  const engine = Engine.create();
+  engine.positionIterations = 10;
+  engine.velocityIterations = 8;
+  engine.constraintIterations = 4;
+  const world = engine.world;
+
+  const ground = [];
+  for (let x = -600; x < 6400; x += 30) {
+    const x2 = x + 30, y1 = terrainY(x), y2 = terrainY(x2);
+    const a = Math.atan2(y2 - y1, x2 - x), L = Math.hypot(x2 - x, y2 - y1);
+    ground.push(Bodies.rectangle((x + x2) / 2 - Math.sin(a) * 30, (y1 + y2) / 2 + Math.cos(a) * 30, L + 4, 60,
+      { isStatic: true, angle: a, friction: 1, label: 'ground' }));
+  }
+  const rnd = seeded(7), rocks = [];
+  for (let x = 3500; x < 5000; x += 190 + rnd() * 110) {
+    const r = 13 + rnd() * 12;
+    rocks.push(Bodies.polygon(x, terrainY(x) + r * 0.35, 6, r, { isStatic: true, angle: rnd() * 3, friction: 1, label: 'ground' }));
+  }
+  Composite.add(world, [...ground, ...rocks]);
+
+  const camel = makeCamel(START_X, -130);
+  Composite.add(world, [camel.torso, camel.parcel, ...camel.legs.flatMap(l => [l.thigh, l.shin]), ...camel.joints]);
+
+  Events.on(engine, 'beforeUpdate', () => {
+    const limp = G.state === 'fallen';
+    // 맞바람: 잠잠하다가 불규칙하게 몰아친다. 낙타와 상자를 뒤로 민다.
+    G.wind = G.state === 'play' ? Math.max(0, Math.sin(G.t * 0.9 + 1.5 * Math.sin(G.t * 0.31))) ** 3 : 0;
+    for (const [b, k] of [[camel.torso, HARD.wind], [camel.parcel, HARD.parcelWind]]) {
+      Body.applyForce(b, b.position, { x: -b.mass * engine.gravity.scale * k * G.wind, y: 0 });
+    }
+    for (const leg of camel.legs) {
+      const up = held[leg.key] && G.state === 'play';
+      if (leg.wasUp && !up) leg.push = PUSH_STEPS;
+      leg.wasUp = up;
+      const p = up ? POSE.lift : leg.push-- > 0 ? POSE.push : POSE.stand;
+      drive(camel.torso, leg.thigh, p.hip, limp ? 0.004 : KP);
+      drive(leg.thigh, leg.shin, p.knee, limp ? 0.004 : KP);
+    }
+  });
+  Events.on(engine, 'collisionStart', ev => {
+    if (G.state !== 'play') return;
+    for (const { bodyA, bodyB } of ev.pairs) {
+      const hit = bodyA.label === 'ground' ? bodyB : bodyB.label === 'ground' ? bodyA : null;
+      if (hit && hit.camelBody) return fall('camel');
+      if (hit && hit.label === 'parcel') return fall('parcel');
+    }
+  });
+
+  Object.assign(G, { engine, camel, rocks, t: 0, dist: 0, wind: 0, reason: '' });
+}
+
+function makeCamel(x, y) {
+  const fur = { density: 0.0012, friction: 0.5 };
+  const parts = [
+    Bodies.rectangle(x, y, 150, 46, { ...fur, label: 'torso', chamfer: { radius: 18 } }),
+    Bodies.circle(x - 8, y - 28, 34, { ...fur, label: 'hump' }),
+    Bodies.rectangle(x + 88, y - 42, 22, 76, { ...fur, label: 'neck', angle: 0.49, chamfer: { radius: 9 } }),
+    Bodies.rectangle(x + 120, y - 80, 48, 24, { ...fur, label: 'head', chamfer: { radius: 10 } }),
+    Bodies.rectangle(x - 8, y - 60, 64, 8, { ...fur, friction: 1, label: 'saddle', chamfer: { radius: 3 } }), // 상자를 얹는 납작한 안장
+    Bodies.rectangle(x - 37, y - 66, 6, RIM, { ...fur, label: 'rim' }), // 안장 앞뒤 턱
+    Bodies.rectangle(x + 21, y - 66, 6, RIM, { ...fur, label: 'rim' }),
+  ];
+  parts.forEach(p => (p.camelBody = true));
+  const torso = Body.create({ parts, collisionFilter: { group: -1 } });
+
+  const hips = { back: { x: x - 52, y: y + 14 }, front: { x: x + 55, y: y + 14 } };
+  const legs = [], joints = [];
+  for (const def of LEGS) {
+    const h = hips[def.hip];
+    const limb = { density: 0.002, collisionFilter: { group: -1 } };
+    const thigh = Bodies.rectangle(h.x, h.y + 29, 16, 58, { ...limb, friction: 0.6, chamfer: { radius: 7 }, label: 'leg' });
+    const shin = Bodies.rectangle(h.x, h.y + 84, 12, 58, { ...limb, friction: 1.2, chamfer: { radius: 5 }, label: 'leg' });
+    joints.push(
+      Constraint.create({ bodyA: torso, pointA: { x: h.x - torso.position.x, y: h.y - torso.position.y }, bodyB: thigh, pointB: { x: 0, y: -27 }, length: 0, stiffness: 1 }),
+      Constraint.create({ bodyA: thigh, pointA: { x: 0, y: 27 }, bodyB: shin, pointB: { x: 0, y: -27 }, length: 0, stiffness: 1 }),
+    );
+    legs.push({ ...def, thigh, shin, wasUp: false, push: 0 });
+  }
+  // 혹 위에 얹기만 한 택배 상자. 묶여 있지 않아서 흔들리면 미끄러진다.
+  const parcel = Bodies.rectangle(x - 8, y - 80, 44, 32, { density: 0.0006, friction: 1, frictionStatic: 1.5, label: 'parcel', chamfer: { radius: 3 } });
+  return { torso, legs, joints, parcel };
+}
+
+// PD 제어: 목표 각도로 당기는 토크를 자식에, 반작용을 부모에.
+function drive(parent, child, target, kp) {
+  const rel = child.angle - parent.angle;
+  const relAv = child.angularVelocity - parent.angularVelocity;
+  const acc = Math.max(-MAX_ACC, Math.min(MAX_ACC, kp * (target - rel) - KD * relAv));
+  const t = acc * child.inertia / DT2;
+  child.torque += t;
+  parent.torque -= t;
+}
+
+// ---------- 상태 ----------
+function start() { build(); G.state = 'play'; hidePanel(); }
+function fall(reason) {
+  G.state = 'fallen';
+  G.reason = reason;
+  saveBest();
+  setTimeout(() => G.state === 'fallen' && showPanel('fallen'), 900);
+}
+function win() { G.state = 'won'; saveBest(); showPanel('won'); }
+function saveBest() {
+  if (G.dist > best) { best = G.dist; try { localStorage.setItem(BEST_KEY, best.toFixed(1)); } catch (e) {} }
+}
+
+const PANELS = {
+  ready: () => `
+    <h1>비틀낙타 하드</h1>
+    <p>이번엔 택배 상자를 끈 없이 혹 위에 얹었어요. 상자가 모래에 떨어져도 끝이에요. 맞바람이 수시로 몰아치고, 언덕은 더 높고, 바위도 더 많아요.</p>
+    <div class="keys">
+      <span><kbd>A</kbd><kbd>S</kbd></span><span>뒷다리 두 개 (왼손)</span>
+      <span><kbd>K</kbd><kbd>L</kbd></span><span>앞다리 두 개 (오른손)</span>
+    </div>
+    <p class="hint">누르고 있으면 다리를 들어 앞으로 뻗고, 떼는 순간 땅을 뒤로 차요. 아무것도 안 누르면 가만히 서 있어요. R로 언제든 다시 시작해요.</p>
+    <p class="hint"><a href="index.html">모드 고르기</a> · <a href="easy.html">일반 모드</a></p>
+    <button id="go" type="button">출발 (Space)</button>`,
+  fallen: () => `
+    <h1>${G.reason === 'parcel' ? '택배 낙하!' : '철퍼덕!'}</h1>
+    <p>${G.reason === 'parcel' ? `<b>${G.dist.toFixed(1)} m</b> 지점에서 택배 상자가 모래에 떨어졌어요.` : `뚜벅이가 <b>${G.dist.toFixed(1)} m</b> 지점에서 모래에 엎어졌어요.`} 최고 기록은 ${best.toFixed(1)} m예요.</p>
+    <p class="hint">${G.reason === 'parcel' ? '팁: 몸통이 크게 들썩이지 않게, 박자를 고르게 유지해 보세요.' : '팁: 대각선 다리끼리 짝을 지어(A+L, S+K) 번갈아, 쉬운 모드보다 한 박자 빠르게 눌러 보세요.'}</p>
+    <button id="go" type="button">다시 걷기 (R)</button>`,
+  won: () => `
+    <h1>도착!</h1>
+    <p>하드모드 완주! 뚜벅이가 ${G.t.toFixed(1)}초 만에 상자를 떨어뜨리지 않고 오아시스 마을에 전했어요.</p>
+    <button id="go" type="button">한 번 더 (R)</button>`,
+};
+function showPanel(kind) {
+  $('card').innerHTML = PANELS[kind]();
+  $('panel').hidden = false;
+  Board.mount($('card'), MODE, kind === 'ready' ? null : { dist: G.dist, time: G.t });
+  $('go').onclick = start;
+  $('go').focus({ preventScroll: true });
+}
+function hidePanel() { $('panel').hidden = true; }
+
+// ---------- 입력 ----------
+addEventListener('keydown', e => {
+  if (e.target.closest?.('input')) return; // 랭킹 이름 입력 중에는 게임 키를 막는다
+  const k = e.key.toLowerCase();
+  if (KEYS.includes(k)) { held[k] = true; e.preventDefault(); }
+  if (k === 'r') start();
+  if (e.code === 'Space' && G.state !== 'play') { e.preventDefault(); start(); }
+});
+addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (KEYS.includes(k)) held[k] = false; });
+addEventListener('blur', () => KEYS.forEach(k => (held[k] = false)));
+document.querySelectorAll('.pad').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => { held[k] = true; b.setPointerCapture?.(e.pointerId); e.preventDefault(); });
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(t, () => (held[k] = false));
+});
+
+// ---------- 그리기 ----------
+const C = {
+  skyTop: '#24305e', skyLow: '#f2a65a', sun: '#ffd98a', far: '#c77d4f', mid: '#d99459',
+  sand: '#e9b872', edge: '#b9763f', rock: '#8d6a55', rockEdge: '#5c4232',
+  fur: '#c8915a', furFar: '#9c6a3e', ink: '#4a2b1a', box: '#9a6a3c', tape: '#ecd9a8',
+  water: '#4fa3b8', palm: '#3f7a4a', trunk: '#7a5232', post: '#6b4a2e', label: '#3a2416', flag: '#d0532f',
+};
+let W = 0, H = 0, S = 1;
+function resize() {
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  S = Math.min(W / 760, H / 470);
+}
+addEventListener('resize', resize);
+
+function poly(verts) {
+  ctx.beginPath();
+  verts.forEach((v, i) => (i ? ctx.lineTo(v.x, v.y) : ctx.moveTo(v.x, v.y)));
+  ctx.closePath();
+}
+function drawBody(b, fill) {
+  ctx.fillStyle = fill;
+  poly(b.vertices);
+  ctx.fill();
+  ctx.stroke();
+}
+
+function draw() {
+  const { torso } = G.camel;
+  const vw = W / S, vh = H / S;
+  // 카메라는 낙타를 화면 왼쪽 1/3쯤에 두고 부드럽게 따라간다.
+  G.cam.x += (torso.position.x - vw * 0.36 - G.cam.x) * 0.12;
+  G.cam.y += (torso.position.y - vh * 0.58 - G.cam.y) * 0.08;
+  const cx = G.cam.x, cy = G.cam.y;
+
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, C.skyTop); sky.addColorStop(1, C.skyLow);
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = C.sun; ctx.beginPath(); ctx.arc(W * 0.78, H * 0.42, Math.min(W, H) * 0.09, 0, 7); ctx.fill();
+
+  // 먼 모래 언덕 두 겹(시차 스크롤)
+  for (const [k, col, base, amp] of [[0.2, C.far, 0.62, 40], [0.45, C.mid, 0.72, 30]]) {
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, H);
+    for (let sx = 0; sx <= W + 10; sx += 10) {
+      const wx = sx / S + cx * k;
+      ctx.lineTo(sx, H * base - (Math.sin(wx / 170) * amp + Math.sin(wx / 61) * amp * 0.25) * S);
+    }
+    ctx.lineTo(W, H); ctx.fill();
+  }
+
+  ctx.save();
+  ctx.scale(S, S);
+  ctx.translate(-cx, -cy);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+  drawOasis();
+
+  // 땅
+  const x0 = Math.floor(cx / 10) * 10 - 20, x1 = cx + vw + 40;
+  ctx.fillStyle = C.sand; ctx.strokeStyle = C.edge; ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x0, terrainY(x0));
+  for (let x = x0; x <= x1; x += 10) ctx.lineTo(x, terrainY(x));
+  ctx.lineTo(x1, cy + vh + 400); ctx.lineTo(x0, cy + vh + 400); ctx.closePath();
+  ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x0, terrainY(x0));
+  for (let x = x0; x <= x1; x += 10) ctx.lineTo(x, terrainY(x));
+  ctx.stroke();
+
+  // 10m마다 거리 말뚝
+  ctx.font = '16px "Black Han Sans", sans-serif'; ctx.textAlign = 'center';
+  for (let m = 10; m < 100; m += 10) {
+    const x = START_X + m * PX_PER_M;
+    if (x < x0 || x > x1) continue;
+    const y = terrainY(x);
+    ctx.fillStyle = C.post; ctx.fillRect(x - 3, y - 46, 6, 46);
+    ctx.fillRect(x - 20, y - 62, 40, 20);
+    ctx.fillStyle = C.tape; ctx.fillText(m + 'm', x, y - 46);
+  }
+
+  ctx.strokeStyle = C.rockEdge; ctx.lineWidth = 3;
+  for (const r of G.rocks) drawBody(r, C.rock);
+
+  drawCamel();
+  ctx.restore();
+
+  // 바람 줄무늬: 세기만큼 진하게, 오른쪽에서 왼쪽으로 흐른다.
+  if (G.wind > 0.05) {
+    ctx.strokeStyle = `rgba(255, 246, 230, ${0.5 * G.wind})`; ctx.lineWidth = 2;
+    for (let i = 0; i < 14; i++) {
+      const y = ((i * 97) % 100) / 100 * H * 0.8 + H * 0.05;
+      const x = W - ((G.t * 900 + i * 173) % (W + 200));
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 60 + (i % 3) * 30, y); ctx.stroke();
+    }
+  }
+}
+
+function drawCamel() {
+  const { torso, legs } = G.camel;
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3;
+  for (const l of legs) if (l.far) { drawBody(l.thigh, C.furFar); drawBody(l.shin, C.furFar); }
+  // 몸통 부품: 목·머리를 먼저, 혹과 몸을 위에
+  const [, torsoP, humpP, neckP, headP] = torso.parts;
+  drawBody(neckP, C.fur); drawBody(headP, C.fur);
+  drawBody(humpP, C.fur); drawBody(torsoP, C.fur);
+  for (const p of torso.parts.slice(5)) drawBody(p, C.box);
+  // 눈·코·귀
+  const a = torso.angle, hx = headP.position.x, hy = headP.position.y;
+  const rot = (dx, dy) => ({ x: hx + dx * Math.cos(a) - dy * Math.sin(a), y: hy + dx * Math.sin(a) + dy * Math.cos(a) });
+  const eye = rot(6, -4), ear = rot(-14, -14), nose = rot(21, 2);
+  ctx.fillStyle = C.ink;
+  ctx.beginPath(); ctx.arc(eye.x, eye.y, G.state === 'fallen' ? 1.5 : 3.2, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(nose.x, nose.y, 2, 0, 7); ctx.fill();
+  ctx.fillStyle = C.fur; ctx.beginPath(); ctx.ellipse(ear.x, ear.y, 4, 7, a - 0.4, 0, 7); ctx.fill(); ctx.stroke();
+  // 택배 상자(물리 바디)
+  const pc = G.camel.parcel;
+  ctx.save(); ctx.translate(pc.position.x, pc.position.y); ctx.rotate(pc.angle);
+  ctx.fillStyle = C.box; ctx.fillRect(-22, -16, 44, 32); ctx.strokeRect(-22, -16, 44, 32);
+  ctx.fillStyle = C.tape; ctx.fillRect(-4, -16, 8, 32);
+  ctx.restore();
+  for (const l of legs) if (!l.far) { drawBody(l.thigh, C.fur); drawBody(l.shin, C.fur); }
+}
+
+function drawOasis() {
+  const gx = GOAL_X, gy = terrainY(gx);
+  ctx.fillStyle = C.water; ctx.beginPath(); ctx.ellipse(gx + 260, gy + 4, 150, 14, 0, 0, 7); ctx.fill();
+  for (const [dx, h, lean] of [[90, 170, -0.15], [380, 200, 0.12], [470, 150, 0.2]]) {
+    const bx = gx + dx, by = terrainY(bx), tx = bx + Math.sin(lean) * h, ty = by - h;
+    ctx.strokeStyle = C.trunk; ctx.lineWidth = 12;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(bx + lean * 60, by - h * 0.5, tx, ty); ctx.stroke();
+    ctx.fillStyle = C.palm;
+    for (let i = 0; i < 6; i++) {
+      const ang = -Math.PI / 2 + (i - 2.5) * 0.55;
+      ctx.beginPath(); ctx.ellipse(tx + Math.cos(ang) * 38, ty + Math.sin(ang) * 22 + 14, 44, 10, ang, 0, 7); ctx.fill();
+    }
+  }
+  // 결승 깃발
+  ctx.fillStyle = C.post; ctx.fillRect(gx - 3, gy - 120, 6, 120);
+  ctx.fillStyle = C.flag; ctx.beginPath(); ctx.moveTo(gx + 3, gy - 120); ctx.lineTo(gx + 60, gy - 104); ctx.lineTo(gx + 3, gy - 88); ctx.fill();
+  ctx.fillStyle = C.label; ctx.font = '20px "Black Han Sans", sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('오아시스 마을', gx + 10, gy - 128);
+}
+
+function hud() {
+  $('dist').innerHTML = G.dist.toFixed(1) + '<small>m</small>';
+  $('left').textContent = Math.max(0, 100 - G.dist).toFixed(1);
+  $('time').textContent = G.t.toFixed(1);
+  $('best').textContent = Math.max(best, G.state === 'play' ? G.dist : 0).toFixed(1);
+  for (const k of KEYS) $('pad' + k.toUpperCase()).classList.toggle('on', held[k]);
+  $('wind').textContent = G.wind > 0.6 ? '강풍' : G.wind > 0.2 ? '약풍' : '잔잔';
+}
+
+// ---------- 루프 ----------
+function step() {
+  Engine.update(G.engine, STEP);
+  if (G.state !== 'play') return;
+  G.t += STEP / 1000;
+  const x = G.camel.torso.position.x;
+  G.dist = Math.max(0, Math.min(100, (x - START_X) / PX_PER_M));
+  if (x >= GOAL_X) win();
+}
+G.step = step; // 헤드리스 점검용
+let last = performance.now(), acc = 0;
+function frame(now) {
+  acc = Math.min(acc + now - last, STEP * 4);
+  last = now;
+  while (acc >= STEP) { if (G.state !== 'ready') step(); acc -= STEP; }
+  draw(); hud();
+  requestAnimationFrame(frame);
+}
+
+resize();
+build();
+showPanel('ready');
+requestAnimationFrame(frame);
+</script>

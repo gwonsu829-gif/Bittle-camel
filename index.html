@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>비틀낙타</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Dodum&display=swap">
+<style>
+  /* 첫 화면: 해 질 녘 사막 위에 모드 두 장을 나란히, 좁으면 세로로. */
+  :root {
+    --night: #24305e; --dusk: #f2a65a; --ink: #3a2416; --paper: #fff3dd; --ember: #d0532f;
+    --display: "Black Han Sans", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    --body: "Gowun Dodum", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  }
+  html, body { min-height: 100%; margin: 0; }
+  body {
+    background: linear-gradient(var(--night), var(--dusk)) fixed; color: var(--paper); font-family: var(--body);
+    display: grid; place-items: center; min-height: 100vh; box-sizing: border-box;
+    padding-block: 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  main { width: min(640px, 100%); display: grid; gap: 22px; }
+  h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(48px, 12vw, 76px); line-height: 1; text-shadow: 0 4px 0 rgba(36, 48, 94, .5); }
+  .lead { margin: 0; font-size: 16px; line-height: 1.6; max-width: 46ch; }
+  .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .mode { display: grid; gap: 8px; padding: 20px; border-radius: 6px; background: var(--paper); color: var(--ink); text-decoration: none; box-shadow: 0 8px 0 rgba(58, 36, 22, .35); transition: transform .08s; }
+  .mode:hover { transform: translateY(-2px); }
+  .mode:focus-visible { outline: 3px solid var(--paper); outline-offset: 3px; }
+  .mode b { font-family: var(--display); font-weight: 400; font-size: 28px; color: var(--ember); }
+  .mode span { font-size: 14px; line-height: 1.5; }
+  .keys { margin: 0; font-size: 14px; opacity: .9; }
+  kbd { font-family: var(--display); background: var(--ink); color: var(--paper); border-radius: 4px; padding: 2px 7px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>비틀낙타</h1>
+  <p class="lead">사막 택배 낙타 뚜벅이의 네 다리를 하나씩 움직여 오아시스 마을까지 100m를 걸어가세요. 끝나면 이름을 남겨 랭킹에 오를 수 있어요.</p>
+  <div class="modes">
+    <a class="mode" href="easy.html"><b>일반</b><span>평지, 모래 언덕, 바위 길. 대각선 리듬만 익히면 완주할 수 있어요.</span></a>
+    <a class="mode" href="hard.html"><b>하드</b><span>끈 없이 얹은 택배 상자, 수시로 부는 맞바람, 더 높은 언덕과 많은 바위.</span></a>
+  </div>
+  <p class="keys"><kbd>A</kbd> <kbd>S</kbd> 뒷다리 · <kbd>K</kbd> <kbd>L</kbd> 앞다리 · 휴대폰은 화면 아래 버튼</p>
+</main>
+</body>
+</html>
