@@ -24,11 +24,21 @@ const Board = (() => {
     return (await r.json()).filter(s => !seen.has(s.name) && seen.add(s.name)).slice(0, 10);
   }
 
+  // 저장소가 거절하면 어느 규칙에 걸렸는지 한글로 보여준다(다음 문제를 바로 찾기 위해).
+  const REASONS = {
+    scores_pace: '속도 규칙(20m 이상 기록이 너무 빠름)', scores_name_check: '닉네임 규칙(1~12자)',
+    scores_dist_check: '거리 규칙(1~100m)', scores_time_check: '시간 규칙', scores_mode_check: '모드 규칙',
+  };
   async function submit(row) {
     const r = await fetch(`${BOARD.url}/rest/v1/scores`, {
       method: 'POST', headers: { ...headers(), Prefer: 'return=minimal' }, body: JSON.stringify(row),
     });
-    if (!r.ok) throw new Error('기록을 올리지 못했어요 (' + r.status + ')');
+    if (r.ok) return;
+    const body = await r.text();
+    const rule = Object.keys(REASONS).find(k => body.includes(k));
+    let why = rule ? REASONS[rule] : '';
+    if (!why) { try { why = (JSON.parse(body).message || '').slice(0, 80); } catch (e) {} }
+    throw new Error(`기록을 올리지 못했어요 (${r.status}${why ? ', ' + why : ''}, ${row.dist}m · ${row.time}초)`);
   }
 
   const store = {
